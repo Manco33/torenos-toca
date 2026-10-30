@@ -50,8 +50,8 @@ body.kiosk-body {
 }
 
 /* ==============================================================================
-   ROTACIÓN 180° PARA KIOSK / MONITORES INVERTIDOS
-   Centrada exactamente en 50vw 50vh para evitar cualquier salto o desplazamiento
+   SOPORTE PARA LAS 4 ROTACIONES DE PANTALLA (0°, 90°, 180°, 270°)
+   Centrada exactamente en 50vw 50vh para monitores horizontales, tótems y techos
    ============================================================================== */
 .kiosk-container {
   display: flex;
@@ -66,12 +66,41 @@ body.kiosk-body {
   overflow: hidden;
   transform: rotate(0deg);
   transform-origin: 50vw 50vh;
-  transition: transform 0.35s ease-in-out;
+  transition: transform 0.3s ease-in-out, width 0.3s ease-in-out, height 0.3s ease-in-out;
 }
 
-/* Rotación estricta de 180 grados sin desbordamiento */
+/* 0° - Normal / Horizontal Estándar */
+.kiosk-container.rotate-0 {
+  transform: rotate(0deg) !important;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* 90° - Vertical derecha (Tótem vertical 9:16) */
+.kiosk-container.rotate-90 {
+  transform: rotate(90deg) !important;
+  width: 100vh !important;
+  height: 100vw !important;
+  position: fixed;
+  top: calc(50vh - 50vw);
+  left: calc(50vw - 50vh);
+}
+
+/* 180° - Invertido (Pantalla de techo) */
 .kiosk-container.rotate-180 {
   transform: rotate(180deg) !important;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* 270° - Vertical izquierda (Tótem vertical invertido) */
+.kiosk-container.rotate-270 {
+  transform: rotate(270deg) !important;
+  width: 100vh !important;
+  height: 100vw !important;
+  position: fixed;
+  top: calc(50vh - 50vw);
+  left: calc(50vw - 50vh);
 }
 
 /* ==============================================================================
@@ -756,19 +785,19 @@ body.kiosk-body {
 }
 
 .orientation-btn-group {
-  display: flex;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
   margin-top: 8px;
 }
 
 .btn-orient {
-  flex: 1;
-  padding: 10px 14px;
+  padding: 12px 14px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border-dim);
   color: #a0aec0;
   font-family: var(--font-title);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 800;
   border-radius: 8px;
   cursor: pointer;
@@ -776,7 +805,7 @@ body.kiosk-body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .btn-orient:hover {

@@ -12,13 +12,13 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <link rel="icon" type="image/png" href="assets/toca_logo.png">
-  <link rel="stylesheet" href="css/style.css?v=8">
+  <link rel="stylesheet" href="css/style.css?v=9">
   <script src="js/supabase.js"></script>
 </head>
 <body class="kiosk-body">
 
   <!-- CONTENEDOR MAESTRO DEL LEADERBOARD -->
-  <div class="kiosk-container" id="kioskContainer">
+  <div class="kiosk-container rotate-0" id="kioskContainer">
 
     <!-- 1. BARRA SUPERIOR (HEADER NEÓN) -->
     <header class="neon-header">
@@ -38,9 +38,9 @@
           <div class="clock-time" id="clockTime">15:41:07</div>
           <div class="clock-date" id="clockDate">Vie, 30 oct 2026</div>
         </div>
-        <!-- Botón para alternar orientación entre 0° Normal y 180° Invertido -->
+        <!-- Botón para ciclar entre las 4 rotaciones: 0°, 90°, 180°, 270° -->
         <div class="kiosk-tools">
-          <button class="btn-rotate" id="btnRotate" title="Cambiar orientación (0° / 180°)">🔄 180° KIOSK</button>
+          <button class="btn-rotate" id="btnRotate" title="Rotar pantalla (0° ➔ 90° ➔ 180° ➔ 270°)">🔄 0°</button>
           <button class="btn-admin-gear" id="btnAdminModal" title="Configurar Modo Torneo">⚙️</button>
         </div>
       </div>
@@ -148,11 +148,13 @@
         </div>
 
         <div class="config-section">
-          <h4>🖥️ ORIENTACIÓN DE PANTALLA:</h4>
-          <p class="section-hint">Selecciona la orientación fija según el montaje del monitor o soporte:</p>
+          <h4>🖥️ ORIENTACIÓN DE PANTALLA (4 ROTACIONES):</h4>
+          <p class="section-hint">Selecciona la rotación adecuada para monitores horizontales, tótems verticales o pantallas de techo:</p>
           <div class="orientation-btn-group">
-            <button type="button" class="btn-orient" id="btnOrient0">🖥️ 0° Normal (Estándar)</button>
-            <button type="button" class="btn-orient" id="btnOrient180">🔄 180° Invertido (Kiosk)</button>
+            <button type="button" class="btn-orient active" id="btnOrient0" data-deg="0">🖥️ 0° Normal (Horizontal)</button>
+            <button type="button" class="btn-orient" id="btnOrient90" data-deg="90">📱 90° Vertical (Derecha)</button>
+            <button type="button" class="btn-orient" id="btnOrient180" data-deg="180">🙃 180° Invertido (Techo)</button>
+            <button type="button" class="btn-orient" id="btnOrient270" data-deg="270">📱 270° Vertical (Izquierda)</button>
           </div>
         </div>
 
@@ -164,6 +166,6 @@
     </div>
   </div>
 
-  <script src="js/app.js?v=8"></script>
+  <script src="js/app.js?v=9"></script>
 </body>
 </html>
