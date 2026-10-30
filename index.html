@@ -3,192 +3,166 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TOCA SOCIAL · ARENA LEADERBOARD</title>
-  <meta name="description" content="Plataforma de torneos en tiempo real para las 18 boxes de Toca Social.">
+  <title>TOCA SOCIAL · LEADERBOARD OFICIAL</title>
+  <meta name="description" content="Leaderboard oficial arcade neon para quioscos y pantallas de Toca Social.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700;800;900&family=Share+Tech+Mono&family=Orbitron:wght@600;800;900&family=Rajdhani:wght@600;700;800&display=swap" rel="stylesheet">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="css/style.css?v=2">
-  <!-- Supabase JS Client v2 (Local bundle para máxima velocidad y confiabilidad offline) -->
+  <link rel="stylesheet" href="css/style.css?v=6">
   <script src="js/supabase.js"></script>
 </head>
-<body>
-  <!-- Header principal del evento -->
-  <header class="arena-header">
-    <div class="header-brand">
-      <div class="logo-mark">TOCA</div>
-      <div class="brand-text">
-        <h1>SOCIAL <span>ARENA</span></h1>
-        <p class="subtitle">TORNEO EN VIVO · 18 BOXES</p>
-      </div>
-    </div>
+<body class="kiosk-body">
 
-    <!-- Banner central de la etapa activa y temporizador -->
-    <div class="stage-banner" id="stageBanner">
-      <div class="stage-badge">
-        <span class="live-dot"></span>
-        <span id="stageStatus">ETAPA EN VIVO</span>
-      </div>
-      <div class="stage-info">
-        <div class="stage-game" id="currentStageGame">ATOM SPLITTER</div>
-        <div class="stage-timer" id="stageTimer">45:00</div>
-      </div>
-    </div>
+  <!-- CONTENEDOR MAESTRO DEL LEADERBOARD -->
+  <div class="kiosk-container" id="kioskContainer">
 
-    <!-- Resumen rápido y botón de administración -->
-    <div class="header-stats">
-      <div class="stat-pill">
-        <span class="stat-label">CABINAS ACTIVAS</span>
-        <span class="stat-value" id="activeBoxesCount">18</span>
-      </div>
-      <button class="btn-admin" id="btnAdmin" title="Panel de Control del Torneo">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="3"></circle>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-        </svg>
-        CONTROL
-      </button>
-    </div>
-  </header>
-
-  <!-- Navegación entre vistas del Leaderboard -->
-  <nav class="nav-tabs">
-    <button class="tab-btn active" data-tab="tab-players">
-      🏆 TOP 10 (POR JUEGO)
-    </button>
-    <button class="tab-btn" data-tab="tab-boxes">
-      🥊 RANKING DE LAS 18 BOXES
-    </button>
-    <button class="tab-btn" data-tab="tab-mvp">
-      ⭐ DÚOS GANADORES & MVP POR BOX
-    </button>
-  </nav>
-
-  <!-- Contenedor principal de contenidos -->
-  <main class="main-stage">
-    
-    <!-- PESTAÑA 1: TOP JUGADORES POR JUEGO -->
-    <section id="tab-players" class="tab-content active">
-      <div class="filter-bar">
-        <span class="filter-label">JUEGO:</span>
-        <div class="game-chips" id="gameFilterChips">
-          <button class="chip active" data-game="atom-splitter">Atom Splitter</button>
-          <button class="chip" data-game="zombies">Zombies</button>
-          <button class="chip" data-game="striker">Striker</button>
-          <button class="chip" data-game="toca-challenge">Toca Challenge</button>
-          <button class="chip" data-game="tug-of-war">Tug of War</button>
+    <!-- 1. BARRA SUPERIOR (HEADER NEÓN) -->
+    <header class="neon-header">
+      <div class="header-left">
+        <div class="brand-badge">
+          <span class="logo-text">TOCA<br><small>Social</small></span>
+        </div>
+        <div class="title-pill">
+          <span class="dot-pink"></span>
+          <span class="title-text">LEADERBOARD</span>
+          <span class="dot-pink"></span>
         </div>
       </div>
 
-      <div class="leaderboard-grid">
-        <!-- Podio Top 3 -->
-        <div class="podium-container" id="playerPodium">
-          <!-- Generado dinámicamente con podio 2º, 1º, 3º -->
+      <div class="header-right">
+        <div class="clock-box" id="neonClock">
+          <div class="clock-time" id="clockTime">15:41:07</div>
+          <div class="clock-date" id="clockDate">Vie, 30 oct 2026</div>
         </div>
-
-        <!-- Tabla de posiciones 4 al 20 -->
-        <div class="table-container">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th style="width: 70px;">POS</th>
-                <th>JUGADOR</th>
-                <th>CABINA</th>
-                <th style="text-align: right;">PUNTOS TOTALES</th>
-                <th style="text-align: right;">TIEMPO RESP.</th>
-              </tr>
-            </thead>
-            <tbody id="playerTableBody">
-              <tr>
-                <td colspan="5" class="empty-state">Esperando primeros puntajes en vivo...</td>
-              </tr>
-            </tbody>
-          </table>
+        <!-- Botón para alternar orientación entre 0° Normal y 180° Invertido -->
+        <div class="kiosk-tools">
+          <button class="btn-rotate" id="btnRotate" title="Cambiar orientación (0° / 180°)">🔄 180° KIOSK</button>
+          <button class="btn-admin-gear" id="btnAdminModal" title="Configurar Modo Torneo">⚙️</button>
         </div>
       </div>
-    </section>
+    </header>
 
-    <!-- PESTAÑA 2: RANKING GENERAL DE LAS 18 BOXES -->
-    <section id="tab-boxes" class="tab-content">
-      <div class="boxes-hero">
-        <div class="boxes-hero-header">
-          <h2>BATALLA DE CABINAS · 18 BOXES EN VIVO</h2>
-          <p>Puntaje acumulado total de todos los jugadores de cada cabina</p>
+    <!-- 2. BARRA DE SELECCIÓN DE JUEGOS (ICÓNICA CON PESTAÑA ACTIVA RESALTADA) -->
+    <nav class="games-nav-bar">
+      <div class="games-tab-list" id="gamesNavList">
+        <!-- Generado dinámicamente con los juegos habilitados del torneo -->
+      </div>
+      <div class="records-tag" id="recordsTagContainer">
+        <span id="recordsTagLabel">RÉCORDS DE HOY</span>
+        <div class="records-indicator">
+          <span class="indicator-bar" id="indicatorBar"></span>
         </div>
       </div>
+    </nav>
 
-      <div class="boxes-cards-grid" id="boxesGrid">
-        <!-- 18 tarjetas de cabinas ordenadas por puntaje total -->
+    <!-- 3. BANNER DE IDENTIFICACIÓN DEL JUEGO ACTIVO -->
+    <div class="game-hero-banner" id="gameHeroBanner">
+      <div class="hero-subbadge" id="heroSubbadge">
+        <span class="triangle-icon">▶</span>
+        <span class="subbadge-text" id="subbadgeText">LOS MEJORES RÉCORDS DE HOY</span>
       </div>
-    </section>
-
-    <!-- PESTAÑA 3: MVP DE CADA BOX -->
-    <section id="tab-mvp" class="tab-content">
-      <div class="mvp-hero-header">
-        <h2>PAREJAS GANADORAS & MVP DE CADA CABINA</h2>
-        <p>Líderes y mejores parejas clasificadas en cada una de las 18 boxes</p>
-      </div>
-      <div class="mvp-grid" id="mvpGrid">
-        <!-- Tarjetas MVP por cabina -->
-      </div>
-    </section>
-
-  </main>
-
-  <!-- Ticker inferior de actividad reciente en tiempo real -->
-  <footer class="live-ticker">
-    <div class="ticker-tag">EN VIVO</div>
-    <div class="ticker-marquee">
-      <div class="ticker-track" id="tickerTrack">
-        <span>Cargando transmisiones de las boxes...</span>
+      <div class="hero-main-title">
+        <div class="hero-icon" id="heroGameIcon">
+          <!-- Icono SVG geométrico del juego -->
+        </div>
+        <h2 id="heroGameName">STRIKER</h2>
       </div>
     </div>
-  </footer>
 
-  <!-- Toast / Notificación flotante para nuevos puntajes -->
-  <div class="score-toast" id="scoreToast">
-    <div class="toast-icon">⚡</div>
-    <div class="toast-body">
-      <div class="toast-title" id="toastTitle">¡NUEVO PUNTAJE REGISTRADO!</div>
-      <div class="toast-detail" id="toastDetail">Astrid (Box 5) sumó 400 pts</div>
-    </div>
+    <!-- 4. TABLA LEADERBOARD TOP 10 (ESTILO EXACTO AL KIOSK ARCADE) -->
+    <main class="leaderboard-table-area">
+      <table class="neon-table">
+        <thead>
+          <tr class="table-head-row">
+            <th class="col-pos">POS</th>
+            <th class="col-player">JUGADOR</th>
+            <th class="col-points">PUNTOS</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboardRows">
+          <!-- 10 FILAS NEÓN -->
+          <tr><td colspan="3" class="empty-kiosk">Cargando las mejores marcas...</td></tr>
+        </tbody>
+      </table>
+    </main>
+
+    <!-- 5. TICKER INFERIOR EN VIVO -->
+    <footer class="neon-footer-bar">
+      <div class="live-pill">
+        <span class="pill-bolt">⚡</span>
+        <span>EN VIVO</span>
+      </div>
+      <div class="footer-carousel" id="footerCarousel">
+        <div class="ticker-scroller" id="tickerScroller">
+          <span id="tickerText">Esperando tiros en las 18 cabinas...</span>
+        </div>
+      </div>
+    </footer>
+
   </div>
 
-  <!-- Modal / Drawer de Control del Torneo -->
-  <div class="modal-backdrop" id="adminModal">
-    <div class="modal-card">
+  <!-- MODAL DE CONTROL: MODO TORNEO & JUEGOS HABILITADOS -->
+  <div class="kiosk-modal-backdrop" id="kioskModal">
+    <div class="kiosk-modal-card">
       <div class="modal-header">
-        <h3>CONTROL DEL TORNEO</h3>
-        <button class="modal-close" id="btnCloseAdmin">&times;</button>
+        <h3>CONFIGURACIÓN MODO TORNEO</h3>
+        <button class="modal-close" id="btnCloseModal">&times;</button>
       </div>
       <div class="modal-body">
-        <div class="form-group">
-          <label>Juego de la Etapa</label>
-          <select id="stageGameSelect">
-            <option value="atom-splitter">Atom Splitter</option>
-            <option value="zombies">Zombies</option>
-            <option value="striker">Striker</option>
-            <option value="toca-challenge">Toca Challenge</option>
-            <option value="tug-of-war">Tug of War</option>
-            <option value="angry-birds">Angry Birds</option>
+        
+        <div class="config-section">
+          <h4>🎮 JUEGOS HABILITADOS PARA EL TORNEO:</h4>
+          <p class="section-hint">Marca únicamente los juegos que se están jugando hoy en el torneo:</p>
+          <div class="game-checkboxes" id="tournamentGamesChecklist">
+            <label class="check-item"><input type="checkbox" value="striker" checked> <span>Striker</span></label>
+            <label class="check-item"><input type="checkbox" value="atom-splitter" checked> <span>Atom Splitter</span></label>
+            <label class="check-item"><input type="checkbox" value="zombies" checked> <span>Zombies</span></label>
+            <label class="check-item"><input type="checkbox" value="toca-challenge" checked> <span>Toca Challenge (100% Solo)</span></label>
+            <label class="check-item"><input type="checkbox" value="eliminator"> <span>Eliminator</span></label>
+            <label class="check-item"><input type="checkbox" value="tug-of-war"> <span>Tug of War</span></label>
+          </div>
+        </div>
+
+        <div class="config-section">
+          <h4>🔄 ROTACIÓN AUTOMÁTICA DE JUEGOS:</h4>
+          <label class="check-item inline">
+            <input type="checkbox" id="chkAutoRotate" checked>
+            <span>Alternar pantalla automáticamente entre los juegos cada:</span>
+          </label>
+          <div class="input-inline">
+            <input type="number" id="rotateSecondsInput" value="15" min="5" max="120">
+            <span>segundos</span>
+          </div>
+        </div>
+
+        <div class="config-section">
+          <h4>⏱️ FILTRO DE PUNTUACIONES:</h4>
+          <select id="timeFilterSelect" class="styled-select">
+            <option value="today" selected>Solo puntajes de hoy (Torneo actual)</option>
+            <option value="all">Histórico completo de la base de datos</option>
           </select>
         </div>
-        <div class="form-group">
-          <label>Duración (Minutos)</label>
-          <input type="number" id="stageDurationInput" value="45" min="5" max="180">
+
+        <div class="config-section">
+          <h4>🖥️ ORIENTACIÓN DE PANTALLA:</h4>
+          <p class="section-hint">Selecciona la orientación fija según el montaje del monitor o soporte:</p>
+          <div class="orientation-btn-group">
+            <button type="button" class="btn-orient" id="btnOrient0">🖥️ 0° Normal (Estándar)</button>
+            <button type="button" class="btn-orient" id="btnOrient180">🔄 180° Invertido (Kiosk)</button>
+          </div>
         </div>
+
         <div class="modal-actions">
-          <button class="btn-primary" id="btnStartStage">▶ INICIAR ETAPA</button>
-          <button class="btn-secondary" id="btnPauseStage">⏸ PAUSAR</button>
-          <button class="btn-danger" id="btnEndStage">⏹ FINALIZAR ETAPA</button>
+          <button class="btn-save-kiosk" id="btnSaveConfig">💾 GUARDAR Y APLICAR AL KIOSK</button>
         </div>
+
       </div>
     </div>
   </div>
 
-  <script src="js/app.js?v=2"></script>
+  <script src="js/app.js?v=6"></script>
 </body>
 </html>

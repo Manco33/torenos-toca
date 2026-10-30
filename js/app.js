@@ -1,523 +1,485 @@
 /**
- * TOCA SOCIAL - ARENA LEADERBOARD CLIENT
- * Conexión en tiempo real a Supabase (Realtime + REST)
+ * TOCA SOCIAL · KIOSK ARCADE LEADERBOARD ENGINE (v4.0)
+ * Conexión en tiempo real a Supabase, rotación 180°, modo torneo y soporte para Toca Challenge Individual
  */
 
 const SUPABASE_URL = 'https://oemqcvivlbjirewybyfe.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_lNTBokUMevI5a_uGPR-6iQ_k8gvKk--';
 
-// Inicializar cliente Supabase de forma segura (evita conflicto léxico con var supabase de la librería)
 let sbClient = null;
 try {
   if (window.supabase && typeof window.supabase.createClient === 'function') {
     sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
-  } else {
-    console.warn('SDK de Supabase no encontrado en window.supabase.');
   }
 } catch (err) {
   console.error('Error al instanciar Supabase client:', err);
 }
 
-// Estado global de la aplicación
-const state = {
-  activeGame: 'atom-splitter',
-  activeTab: 'tab-players',
-  timerSeconds: 45 * 60,
-  timerRunning: false,
-  timerInterval: null,
-  allBoxes: Array.from({ length: 18 }, (_, i) => `box-${i + 1}`)
+// Configuración de juegos conocidos con sus iconos y nombres visuales
+const GAME_DEFS = {
+  'striker': { name: 'STRIKER', icon: '🔺', iconSvg: '▲' },
+  'atom-splitter': { name: 'ATOM SPLITTER', icon: '⚛️', iconSvg: '⚛' },
+  'zombies': { name: 'ZOMBIES', icon: '🧟', iconSvg: '🧟' },
+  'toca-challenge': { name: 'TOCA CHALLENGE', icon: '💀', iconSvg: '💀' },
+  'eliminator': { name: 'ELIMINATOR', icon: '🎯', iconSvg: '🎯' },
+  'tug-of-war': { name: 'TUG OF WAR', icon: '⚔️', iconSvg: '⚔' }
 };
 
-// Elementos del DOM
+// Estado global de la aplicación Kiosk
+const state = {
+  // Juegos activos en el modo torneo
+  tournamentGames: ['striker', 'atom-splitter', 'zombies', 'toca-challenge'],
+  activeGame: 'striker',
+  isRotated: false,
+  autoRotate: true,
+  rotateIntervalSec: 15,
+  rotateTimer: null,
+  timeFilter: 'today', // 'today' o 'all'
+  currentTop10: []
+};
+
 const $ = (id) => document.getElementById(id);
 
 // ==============================================================================
-// 1. CARGA DE DATOS & RENDERIZADO
+// 1. CARGA DE CONFIGURACIÓN PERSISTENTE (LOCALSTORAGE)
 // ==============================================================================
+function loadSavedSettings() {
+  const savedRotate = localStorage.getItem('toca_kiosk_rotate');
+  applyRotation(savedRotate === 'true', false);
 
-/** Carga el Top Jugadores del juego seleccionado (Ranking por Puntos Acumulados - Top 10) */
-async function loadTopPlayers() {
-  if (!sbClient) {
-    console.warn('Supabase no disponible para loadTopPlayers');
-    return;
+  const savedGames = localStorage.getItem('toca_tournament_games');
+  if (savedGames) {
+    try {
+      const parsed = JSON.parse(savedGames);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        state.tournamentGames = parsed;
+      }
+    } catch (e) {}
   }
-  try {
-    const { data, error } = await sbClient
-      .from('view_top_players_by_game')
-      .select('*')
-      .eq('game_id', state.activeGame)
-      .order('total_score', { ascending: false })
-      .limit(10);
 
-    if (error) throw error;
-    renderPodium(data || []);
-    renderPlayerTable(data || []);
-  } catch (err) {
-    console.error('Error cargando top players:', err.message);
+  const savedAuto = localStorage.getItem('toca_kiosk_autorotate');
+  if (savedAuto !== null) {
+    state.autoRotate = (savedAuto === 'true');
+  }
+
+  const savedSec = localStorage.getItem('toca_kiosk_rotatesec');
+  if (savedSec) {
+    state.rotateIntervalSec = parseInt(savedSec, 10) || 15;
+  }
+
+  const savedFilter = localStorage.getItem('toca_kiosk_timefilter');
+  if (savedFilter) {
+    state.timeFilter = savedFilter;
+  }
+
+  // Asegurar que activeGame pertenezca a los habilitados
+  if (!state.tournamentGames.includes(state.activeGame)) {
+    state.activeGame = state.tournamentGames[0] || 'striker';
   }
 }
 
-/** Renderiza el podio (Top 1, 2 y 3) */
-function renderPodium(players) {
-  const container = $('playerPodium');
-  if (!players || players.length === 0) {
-    container.innerHTML = `
-      <div class="empty-state" style="margin: auto;">
-        No hay puntajes registrados aún en <strong>${state.activeGame}</strong>.
-      </div>`;
-    return;
-  }
-
-  const p1 = players[0] || null;
-  const p2 = players[1] || null;
-  const p3 = players[2] || null;
-
-  function renderSpot(p, rank, crownEmoji, rankLabel) {
-    if (!p) {
-      return `<div class="podium-pillar" style="opacity:0.3;"><div class="podium-rank-tag">${rank}º</div></div>`;
-    }
-    const isDuo = p.player_name.includes(' & ');
+// ==============================================================================
+// 2. RENDER DE NAVEGACIÓN Y HERO BANNER
+// ==============================================================================
+function renderGameTabs() {
+  const container = $('gamesNavList');
+  container.innerHTML = state.tournamentGames.map(gameId => {
+    const def = GAME_DEFS[gameId] || { name: gameId.toUpperCase(), icon: '🎮' };
+    const isActive = (gameId === state.activeGame);
     return `
-      <div class="podium-avatar">${isDuo ? '👥' : crownEmoji}</div>
-      <div class="podium-name" title="${escapeHtml(p.player_name)}">
-        ${isDuo ? '<span class="podium-duo-indicator">DÚO</span>' : ''}${escapeHtml(p.player_name)}
-      </div>
-      <div class="podium-box">${p.box_name.toUpperCase()}</div>
-      <div class="podium-pillar">
-        <div class="podium-score">${Number(p.total_score).toLocaleString()}</div>
-        <div style="font-size:0.75rem; color:${rank === 1 ? 'var(--gold)' : 'var(--text-muted)'}; margin-bottom:6px; font-weight:700;">
-          ${p.matches_played} part. · Mejor: ${p.best_score}
-        </div>
-        <div class="podium-rank-tag">${rankLabel}</div>
-      </div>
+      <button class="game-tab-item ${isActive ? 'active' : ''}" data-game="${gameId}">
+        <span class="tab-icon">${def.icon}</span>
+        <span class="tab-name">${def.name}</span>
+      </button>
     `;
-  }
+  }).join('');
 
-  container.innerHTML = `
-    <!-- 2do Lugar -->
-    <div class="podium-spot rank-2">
-      ${renderSpot(p2, 2, '🥈', '2º LUGAR')}
-    </div>
+  // Event listener en las pestañas
+  container.querySelectorAll('.game-tab-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const g = btn.dataset.game;
+      state.timeFilter = 'today'; // Al hacer clic manual, mostrar primero records de hoy
+      switchActiveGame(g);
+      resetAutoRotateTimer();
+    });
+  });
 
-    <!-- 1er Lugar (Centro, más alto) -->
-    <div class="podium-spot rank-1">
-      ${renderSpot(p1, 1, '👑', '1º LUGAR')}
-    </div>
-
-    <!-- 3er Lugar -->
-    <div class="podium-spot rank-3">
-      ${renderSpot(p3, 3, '🥉', '3º LUGAR')}
-    </div>
-  `;
+  updateHeroBanner();
 }
 
-/** Renderiza la tabla de posiciones desde el 4º al 10º (máximo 7 filas para no deformar la web) */
-function renderPlayerTable(players) {
-  const tbody = $('playerTableBody');
-  const rest = players.slice(3, 10);
+function updateHeroBanner() {
+  const def = GAME_DEFS[state.activeGame] || { name: state.activeGame.toUpperCase(), icon: '🎮' };
+  $('heroGameName').textContent = def.name;
+  $('heroGameIcon').textContent = def.icon;
+  
+  const subbadge = $('heroSubbadge');
+  const tagLabel = $('recordsTagLabel');
+  const banner = $('gameHeroBanner');
+  const bar = $('indicatorBar');
 
-  if (rest.length === 0) {
-    if (players.length <= 3 && players.length > 0) {
-      tbody.innerHTML = `<tr><td colspan="5" class="empty-state">Solo los mejores 3 en el podio. Esperando más tiradores en el Top 10...</td></tr>`;
-    } else {
-      tbody.innerHTML = `<tr><td colspan="5" class="empty-state">Sin partidas registradas aún.</td></tr>`;
+  if (state.timeFilter === 'today') {
+    $('subbadgeText').textContent = 'LOS MEJORES RÉCORDS DE HOY';
+    if (tagLabel) tagLabel.textContent = 'RÉCORDS DE HOY';
+    if (subbadge) subbadge.classList.remove('badge-historical');
+    if (banner) banner.classList.remove('phase-historical');
+    if (bar) bar.classList.remove('bar-historical');
+  } else {
+    $('subbadgeText').textContent = 'MEJORES RÉCORDS HISTÓRICOS';
+    if (tagLabel) tagLabel.textContent = 'RÉCORDS HISTÓRICOS';
+    if (subbadge) subbadge.classList.add('badge-historical');
+    if (banner) banner.classList.add('phase-historical');
+    if (bar) bar.classList.add('bar-historical');
+  }
+}
+
+function switchActiveGame(gameId) {
+  if (!state.tournamentGames.includes(gameId)) return;
+  state.activeGame = gameId;
+  
+  // Actualizar estilos tabs
+  document.querySelectorAll('.game-tab-item').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.game === gameId);
+  });
+
+  updateHeroBanner();
+  loadLeaderboard();
+}
+
+// ==============================================================================
+// 3. CARGA DE DATOS DESDE SUPABASE Y TOP 10 EN VIVO
+// ==============================================================================
+async function loadLeaderboard() {
+  if (!sbClient) return;
+
+  try {
+    let query = sbClient
+      .from('match_scores')
+      .select('player_name, score, played_at, box_id')
+      .eq('game_id', state.activeGame);
+
+    // Filtro por fecha si está activado "today"
+    if (state.timeFilter === 'today') {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      query = query.gte('played_at', todayStart.toISOString());
     }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const scoresList = data || [];
+
+    // Agrupación de puntajes por jugador/pareja
+    // REGLA CRÍTICA:
+    // En 'toca-challenge' NUNCA es en parejas; cada jugador cuenta por separado
+    const isTocaChallenge = (state.activeGame === 'toca-challenge');
+    const playerTotals = {};
+    const playerBox = {};
+    const playerLastPlayed = {};
+
+    scoresList.forEach(row => {
+      let pName = (row.player_name || 'Jugador').trim();
+      const score = Number(row.score) || 0;
+
+      // Si es toca-challenge y por alguna razón vino con '&', se desglosa
+      if (isTocaChallenge && pName.includes(' & ')) {
+        const parts = pName.split(' & ');
+        parts.forEach(part => {
+          const cleanName = part.trim();
+          playerTotals[cleanName] = (playerTotals[cleanName] || 0) + Math.round(score / parts.length);
+          playerBox[cleanName] = row.box_id;
+          playerLastPlayed[cleanName] = row.played_at;
+        });
+      } else {
+        playerTotals[pName] = (playerTotals[pName] || 0) + score;
+        playerBox[pName] = row.box_id;
+        playerLastPlayed[pName] = row.played_at;
+      }
+    });
+
+    // Ordenar de mayor a menor y tomar el TOP 10 exacto
+    const ranked = Object.entries(playerTotals)
+      .map(([name, totalScore]) => ({
+        name: name,
+        score: totalScore,
+        box_id: playerBox[name] || 'box-1',
+        played_at: playerLastPlayed[name],
+        isDuo: (!isTocaChallenge && name.includes(' & '))
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+
+    state.currentTop10 = ranked;
+    renderLeaderboardRows(ranked);
+
+  } catch (err) {
+    console.error('Error cargando leaderboard:', err.message);
+  }
+}
+
+// ==============================================================================
+// 4. RENDERIZADO DE LAS 10 FILAS NEÓN
+// ==============================================================================
+function renderLeaderboardRows(ranked) {
+  const tbody = $('leaderboardRows');
+
+  if (!ranked || ranked.length === 0) {
+    const gameDef = GAME_DEFS[state.activeGame] || { name: state.activeGame.toUpperCase() };
+    const phaseMsg = (state.timeFilter === 'today')
+      ? `Aún no hay disparos registrados hoy en <strong>${gameDef.name}</strong>.<br><span style="color:var(--neon-cyan);font-size:0.85rem;margin-top:6px;display:inline-block;">⚡ ¡Sé el primer jugador en entrar al Top 10 hoy!</span>`
+      : `Esperando mejores registros históricos en <strong>${gameDef.name}</strong>...`;
+
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="3" class="empty-kiosk">
+          ${phaseMsg}
+        </td>
+      </tr>
+    `;
     return;
   }
 
-  tbody.innerHTML = rest.map((p, idx) => {
-    const isDuo = p.player_name.includes(' & ');
-    const tagContent = isDuo ? '👥' : escapeHtml(p.player_name.substring(0, 2).toUpperCase());
-    const tagClass = isDuo ? 'player-tag duo-tag' : 'player-tag';
+  tbody.innerHTML = ranked.map((item, idx) => {
+    const pos = idx + 1;
+    let rankClass = 'rank-rest';
+    if (pos === 1) rankClass = 'rank-1';
+    else if (pos === 2) rankClass = 'rank-2';
+    else if (pos === 3) rankClass = 'rank-3';
+
+    const formattedScore = Number(item.score).toLocaleString();
+    const boxLabel = item.box_id ? item.box_id.toUpperCase() : 'BOX';
+
+    // Fecha formateada (ej. 30 oct 2026)
+    let dateStr = 'Hoy';
+    if (item.played_at) {
+      try {
+        const d = new Date(item.played_at);
+        dateStr = d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+      } catch (e) {}
+    }
 
     return `
-      <tr>
-        <td class="pos-badge">#${idx + 4}</td>
-        <td>
-          <div class="player-cell">
-            <div class="${tagClass}" title="${isDuo ? 'Pareja / Dúo' : 'Individual'}">${tagContent}</div>
-            <span title="${escapeHtml(p.player_name)}">${escapeHtml(p.player_name)}</span>
+      <tr class="kiosk-row ${rankClass}">
+        <td class="cell-pos">
+          <div class="cell-pos-box">${pos}</div>
+        </td>
+        <td class="cell-player">
+          <div class="cell-player-wrapper">
+            <div class="cell-player-name" title="${escapeHtml(item.name)}">
+              ${item.isDuo ? '<span class="duo-icon-tag">👥 DÚO</span>' : ''}
+              ${escapeHtml(item.name)}
+            </div>
+            <div class="cell-player-meta">${dateStr} · ${boxLabel}</div>
           </div>
         </td>
-        <td><span class="box-pill">${p.box_name.toUpperCase()}</span></td>
-        <td class="score-cell">
-          <strong>${Number(p.total_score).toLocaleString()}</strong>
-          <span style="font-size:0.75rem; color:var(--text-dim); margin-left:6px;">(${p.matches_played} part. · Récord: ${p.best_score})</span>
+        <td class="cell-score">
+          <span class="cell-score-num">${formattedScore}</span>
+          <span class="cell-score-pts">PTS</span>
         </td>
-        <td style="text-align: right; color: var(--text-dim); font-family: var(--font-mono);">${p.avg_response_time ? p.avg_response_time + 's' : '--'}</td>
       </tr>
     `;
   }).join('');
 }
 
-/** Carga el ranking de las 18 boxes */
-async function loadBoxesLeaderboard() {
-  if (!sbClient) return;
-  try {
-    const { data, error } = await sbClient
-      .from('view_leaderboard_by_box')
-      .select('*')
-      .order('total_box_score', { ascending: false });
+// ==============================================================================
+// 5. ROTACIÓN 180° Y AUTOMATIZACIÓN DE PANTALLA
+// ==============================================================================
+let isRotating = false;
 
-    if (error) throw error;
-    renderBoxesGrid(data || []);
-  } catch (err) {
-    console.error('Error cargando boxes:', err.message);
+function applyRotation(rotated, save = true) {
+  state.isRotated = !!rotated;
+  if (save) {
+    localStorage.setItem('toca_kiosk_rotate', state.isRotated ? 'true' : 'false');
+  }
+
+  const container = $('kioskContainer');
+  const btn = $('btnRotate');
+  const btn0 = $('btnOrient0');
+  const btn180 = $('btnOrient180');
+
+  if (state.isRotated) {
+    if (container) container.classList.add('rotate-180');
+    if (btn) {
+      btn.innerHTML = '🔄 0° NORMAL';
+      btn.title = 'Pantalla invertida (180°). Clic para volver a 0° Normal';
+    }
+    if (btn0) btn0.classList.remove('active');
+    if (btn180) btn180.classList.add('active');
+  } else {
+    if (container) container.classList.remove('rotate-180');
+    if (btn) {
+      btn.innerHTML = '🔄 180° KIOSK';
+      btn.title = 'Pantalla normal (0°). Clic para invertir a 180° Kiosk';
+    }
+    if (btn0) btn0.classList.add('active');
+    if (btn180) btn180.classList.remove('active');
   }
 }
 
-/** Renderiza las 18 tarjetas de cabinas */
-function renderBoxesGrid(scoresData) {
-  const container = $('boxesGrid');
-  const scoresMap = new Map();
-  scoresData.forEach(item => scoresMap.set(item.box_id, item));
+function toggleRotate() {
+  if (isRotating) return;
+  isRotating = true;
+  setTimeout(() => { isRotating = false; }, 450);
 
-  // Ordenar las 18 boxes: primero las que tienen puntos, luego las demás
-  const boxesRanked = state.allBoxes.map(boxId => {
-    const record = scoresMap.get(boxId);
-    return {
-      box_id: boxId,
-      name: `Box ${boxId.replace('box-', '')}`,
-      total_score: record ? record.total_box_score : 0,
-      active_players: record ? record.active_players : 0,
-      games_played: record ? record.total_games_played : 0
-    };
-  }).sort((a, b) => b.total_score - a.total_score);
-
-  container.innerHTML = boxesRanked.map((b, idx) => {
-    const isLeader = idx === 0 && b.total_score > 0;
-    return `
-      <div class="box-card ${isLeader ? 'leader' : ''}">
-        <div class="box-card-top">
-          <div class="box-card-num">${b.name.toUpperCase()}</div>
-          <div class="box-card-rank">#${idx + 1}</div>
-        </div>
-        <div class="box-card-score">
-          ${b.total_score} <small>PTS</small>
-        </div>
-        <div class="box-card-meta">
-          <span>👥 ${b.active_players} Jugadores</span>
-          <span>🎮 ${b.games_played} Partidas</span>
-        </div>
-      </div>
-    `;
-  }).join('');
+  applyRotation(!state.isRotated, true);
 }
 
-/** Carga los MVPs y Parejas Ganadoras de cada cabina */
-async function loadMvpLeaderboard() {
-  if (!sbClient) return;
-  try {
-    const { data, error } = await sbClient
-      .from('match_scores')
-      .select('box_id, player_name, score');
-
-    if (error) throw error;
-    renderMvpGrid(data || []);
-  } catch (err) {
-    console.error('Error cargando MVPs / Parejas:', err.message);
-  }
+function triggerProgressBar(durationSec) {
+  const bar = $('indicatorBar');
+  if (!bar) return;
+  bar.style.transition = 'none';
+  bar.style.width = '0%';
+  void bar.offsetWidth; // Forzar reflujo de diseño
+  bar.style.transition = `width ${durationSec}s linear`;
+  bar.style.width = '100%';
 }
 
-function renderMvpGrid(scoresData) {
-  const container = $('mvpGrid');
-  if (!scoresData || scoresData.length === 0) {
-    container.innerHTML = `<div class="empty-state" style="grid-column: 1 / -1;">No hay líderes de cabina aún.</div>`;
-    return;
-  }
+function startAutoRotate() {
+  clearInterval(state.rotateTimer);
+  if (!state.autoRotate) return;
 
-  // Agrupar por cabina y por jugador/pareja
-  const boxMap = {};
-  for (let i = 1; i <= 18; i++) {
-    const boxId = `box-${i}`;
-    boxMap[boxId] = {
-      box_id: boxId,
-      box_name: `BOX ${i}`,
-      duos: {},
-      singles: {},
-      total: 0
-    };
-  }
+  // Barra de progreso de la fase inicial
+  triggerProgressBar(state.rotateIntervalSec);
 
-  scoresData.forEach(row => {
-    const b = boxMap[row.box_id];
-    if (!b) return;
-    const score = Number(row.score) || 0;
-    b.total += score;
-    const isDuo = row.player_name && row.player_name.includes(' & ');
-    const target = isDuo ? b.duos : b.singles;
-    target[row.player_name] = (target[row.player_name] || 0) + score;
-  });
-
-  // Filtrar solo las boxes que tengan puntajes ordenadas por puntaje
-  const activeBoxes = Object.values(boxMap)
-    .filter(b => b.total > 0)
-    .map(b => {
-      // Priorizar la pareja ganadora si existe
-      const duoEntries = Object.entries(b.duos).sort((a, b) => b[1] - a[1]);
-      const singleEntries = Object.entries(b.singles).sort((a, b) => b[1] - a[1]);
-
-      let winnerName = '';
-      let winnerScore = 0;
-      let isDuo = false;
-
-      if (duoEntries.length > 0) {
-        winnerName = duoEntries[0][0];
-        winnerScore = duoEntries[0][1];
-        isDuo = true;
-      } else if (singleEntries.length > 0) {
-        winnerName = singleEntries[0][0];
-        winnerScore = singleEntries[0][1];
-        isDuo = false;
+  state.rotateTimer = setInterval(() => {
+    // Si estábamos mostrando "today", pasamos a mostrar "all" (Récords Históricos) del mismo juego
+    if (state.timeFilter === 'today') {
+      state.timeFilter = 'all';
+      updateHeroBanner();
+      loadLeaderboard();
+      triggerProgressBar(state.rotateIntervalSec);
+    } else {
+      // Si ya mostramos los históricos de este juego, pasamos al siguiente juego y volvemos a "today"
+      state.timeFilter = 'today';
+      if (state.tournamentGames.length > 0) {
+        const currentIndex = state.tournamentGames.indexOf(state.activeGame);
+        const nextIndex = (currentIndex + 1) % state.tournamentGames.length;
+        switchActiveGame(state.tournamentGames[nextIndex]);
       }
+      triggerProgressBar(state.rotateIntervalSec);
+    }
+  }, state.rotateIntervalSec * 1000);
+}
 
-      return {
-        box_id: b.box_id,
-        box_name: b.box_name,
-        player_name: winnerName,
-        total_score: winnerScore,
-        isDuo: isDuo
-      };
-    })
-    .filter(b => b.player_name)
-    .sort((a, b) => b.total_score - a.total_score);
-
-  if (activeBoxes.length === 0) {
-    container.innerHTML = `<div class="empty-state" style="grid-column: 1 / -1;">No hay líderes de cabina aún.</div>`;
-    return;
+function resetAutoRotateTimer() {
+  if (state.autoRotate) {
+    startAutoRotate();
   }
-
-  container.innerHTML = activeBoxes.map(mvp => `
-    <div class="mvp-card ${mvp.isDuo ? 'mvp-duo' : ''}">
-      <div class="mvp-avatar">${mvp.isDuo ? '👥' : '⭐'}</div>
-      <div class="mvp-info" style="flex:1; min-width:0;">
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-          <div class="mvp-box-badge">${mvp.box_name.toUpperCase()}</div>
-          ${mvp.isDuo ? '<span class="duo-badge-pill">👥 PAREJA GANADORA</span>' : '<span class="duo-badge-pill solo">⭐ MVP</span>'}
-        </div>
-        <h4 style="margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(mvp.player_name)}">
-          ${escapeHtml(mvp.player_name)}
-        </h4>
-        <div class="mvp-score">${Number(mvp.total_score).toLocaleString()} PTS</div>
-      </div>
-    </div>
-  `).join('');
 }
 
 // ==============================================================================
-// 2. REALTIME (Escuchar nuevos puntajes en vivo de las 18 boxes)
+// 6. RELOJ NEÓN EN TIEMPO REAL
+// ==============================================================================
+function startNeonClock() {
+  function update() {
+    const now = new Date();
+    const h = String(now.getHours()).padStart(2, '0');
+    const m = String(now.getMinutes()).padStart(2, '0');
+    const s = String(now.getSeconds()).padStart(2, '0');
+    $('clockTime').textContent = `${h}:${m}:${s}`;
+
+    const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    const dName = days[now.getDay()];
+    const dNum = now.getDate();
+    const mName = months[now.getMonth()];
+    const year = now.getFullYear();
+    $('clockDate').textContent = `${dName}, ${dNum} ${mName} ${year}`;
+  }
+  update();
+  setInterval(update, 1000);
+}
+
+// ==============================================================================
+// 7. REALTIME DE SUPABASE (ACTUALIZACIONES AL VUELO)
 // ==============================================================================
 function initRealtime() {
   if (!sbClient) return;
   try {
-    const channel = sbClient
-      .channel('arena-live-scores')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'match_scores' },
-        (payload) => {
-          const row = payload.new;
-          console.log('⚡ Nuevo puntaje recibido en tiempo real:', row);
-          
-          // Disparar toast animado
-          showToast(`¡PUNTAJE EN VIVO EN ${row.box_id.toUpperCase()}!`, `${row.player_name} anotó ${row.score} pts en ${row.game_id}`);
-          
-          // Actualizar ticker inferior
-          updateTicker(`⚡ ${row.player_name} (${row.box_id.toUpperCase()}) sumó ${row.score} pts en ${row.game_id}`);
+    sbClient
+      .channel('kiosk-live-stream')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'match_scores' }, payload => {
+        const row = payload.new;
+        // Actualizar ticker inferior
+        const gameName = (GAME_DEFS[row.game_id] ? GAME_DEFS[row.game_id].name : row.game_id.toUpperCase());
+        updateTicker(`⚡ ${row.player_name} anotó ${Number(row.score).toLocaleString()} pts en ${gameName} (${(row.box_id||'').toUpperCase()})`);
 
-          // Recargar datos automáticamente
-          refreshAllData();
+        // Si el puntaje es del juego activo, recargar tabla de inmediato
+        if (row.game_id === state.activeGame) {
+          loadLeaderboard();
         }
-      )
-      .subscribe((status) => {
-        console.log('[Supabase Realtime Status]:', status);
-      });
+      })
+      .subscribe();
   } catch (err) {
-    console.error('Error iniciando realtime:', err);
+    console.error('Error suscribiendo a Realtime:', err);
   }
 }
 
-function refreshAllData() {
-  loadTopPlayers();
-  loadBoxesLeaderboard();
-  loadMvpLeaderboard();
+function updateTicker(msg) {
+  $('tickerText').textContent = msg;
 }
 
 // ==============================================================================
-// 3. TOAST & TICKER NOTIFICACIONES
+// 8. MODAL DE CONFIGURACIÓN DEL TORNEO
 // ==============================================================================
-let toastTimeout = null;
-function showToast(title, detail) {
-  const toast = $('scoreToast');
-  $('toastTitle').textContent = title;
-  $('toastDetail').textContent = detail;
-  toast.classList.add('show');
-  
-  clearTimeout(toastTimeout);
-  toastTimeout = setTimeout(() => {
-    toast.classList.remove('show');
-  }, 4500);
-}
+function initModal() {
+  const modal = $('kioskModal');
+  $('btnAdminModal').addEventListener('click', () => {
+    // Sincronizar checkboxes con el estado actual
+    document.querySelectorAll('#tournamentGamesChecklist input').forEach(chk => {
+      chk.checked = state.tournamentGames.includes(chk.value);
+    });
+    $('chkAutoRotate').checked = state.autoRotate;
+    $('rotateSecondsInput').value = state.rotateIntervalSec;
+    $('timeFilterSelect').value = state.timeFilter;
 
-function updateTicker(message) {
-  const track = $('tickerTrack');
-  const span = document.createElement('span');
-  span.style.marginRight = '40px';
-  span.textContent = message;
-  track.prepend(span);
-}
+    const b0 = $('btnOrient0');
+    const b180 = $('btnOrient180');
+    if (b0) b0.classList.toggle('active', !state.isRotated);
+    if (b180) b180.classList.toggle('active', state.isRotated);
 
-// ==============================================================================
-// 4. TEMPORIZADOR DE ETAPA (Persistente con LocalStorage)
-// ==============================================================================
-function updateTimerDisplay() {
-  const m = Math.floor(state.timerSeconds / 60);
-  const s = state.timerSeconds % 60;
-  $('stageTimer').textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
+    modal.classList.add('open');
+  });
 
-function startTimer(updateStorage = true) {
-  if (state.timerRunning) return;
-  state.timerRunning = true;
-  $('stageStatus').textContent = 'ETAPA EN VIVO';
-  if (updateStorage) {
-    const endTime = Date.now() + state.timerSeconds * 1000;
-    localStorage.setItem('toca_stage_end_time', endTime);
-    localStorage.setItem('toca_stage_running', 'true');
-    localStorage.setItem('toca_stage_game', state.activeGame);
-  }
-  clearInterval(state.timerInterval);
-  state.timerInterval = setInterval(() => {
-    if (state.timerSeconds > 0) {
-      state.timerSeconds--;
-      updateTimerDisplay();
-    } else {
-      clearInterval(state.timerInterval);
-      state.timerRunning = false;
-      localStorage.setItem('toca_stage_running', 'false');
-      $('stageStatus').textContent = 'ETAPA FINALIZADA';
-      showToast('¡TIEMPO!', 'La etapa ha finalizado.');
+  $('btnCloseModal').addEventListener('click', () => modal.classList.remove('open'));
+
+  const btn0 = $('btnOrient0');
+  if (btn0) btn0.addEventListener('click', () => applyRotation(false));
+
+  const btn180 = $('btnOrient180');
+  if (btn180) btn180.addEventListener('click', () => applyRotation(true));
+
+  const btnRotate = $('btnRotate');
+  if (btnRotate) btnRotate.addEventListener('click', () => toggleRotate());
+
+  $('btnSaveConfig').addEventListener('click', () => {
+    const selected = [];
+    document.querySelectorAll('#tournamentGamesChecklist input:checked').forEach(chk => {
+      selected.push(chk.value);
+    });
+
+    if (selected.length === 0) {
+      alert('Debes seleccionar al menos 1 juego para el torneo.');
+      return;
     }
-  }, 1000);
-}
 
-function pauseTimer() {
-  state.timerRunning = false;
-  clearInterval(state.timerInterval);
-  localStorage.setItem('toca_stage_running', 'false');
-  localStorage.setItem('toca_stage_seconds', state.timerSeconds);
-  $('stageStatus').textContent = 'EN PAUSA';
-}
+    state.tournamentGames = selected;
+    state.autoRotate = $('chkAutoRotate').checked;
+    state.rotateIntervalSec = parseInt($('rotateSecondsInput').value, 10) || 15;
+    state.timeFilter = $('timeFilterSelect').value;
 
-function resetTimer(minutes) {
-  pauseTimer();
-  state.timerSeconds = minutes * 60;
-  localStorage.setItem('toca_stage_seconds', state.timerSeconds);
-  updateTimerDisplay();
-}
+    // Guardar en localStorage
+    localStorage.setItem('toca_tournament_games', JSON.stringify(state.tournamentGames));
+    localStorage.setItem('toca_kiosk_autorotate', state.autoRotate ? 'true' : 'false');
+    localStorage.setItem('toca_kiosk_rotatesec', state.rotateIntervalSec);
+    localStorage.setItem('toca_kiosk_timefilter', state.timeFilter);
 
-function initTimerState() {
-  const savedEndTime = localStorage.getItem('toca_stage_end_time');
-  const savedGame = localStorage.getItem('toca_stage_game');
-  const savedRunning = localStorage.getItem('toca_stage_running');
-
-  if (savedGame) {
-    state.activeGame = savedGame;
-    $('currentStageGame').textContent = savedGame.replace('-', ' ').toUpperCase();
-    document.querySelectorAll('.chip').forEach(c => {
-      c.classList.toggle('active', c.dataset.game === savedGame);
-    });
-  }
-
-  if (savedEndTime && savedRunning === 'true') {
-    const diff = Math.max(0, Math.floor((parseInt(savedEndTime, 10) - Date.now()) / 1000));
-    state.timerSeconds = diff;
-    if (diff > 0) {
-      startTimer(false);
-    } else {
-      $('stageStatus').textContent = 'ETAPA FINALIZADA';
-      updateTimerDisplay();
-    }
-  } else if (localStorage.getItem('toca_stage_seconds')) {
-    state.timerSeconds = parseInt(localStorage.getItem('toca_stage_seconds'), 10) || 45 * 60;
-    updateTimerDisplay();
-  } else {
-    // Si es primera vez, arrancar la cuenta regresiva de 45 minutos
-    startTimer(true);
-  }
-}
-
-// ==============================================================================
-// 5. EVENT LISTENERS & INICIALIZACIÓN
-// ==============================================================================
-function initUI() {
-  // Tabs
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      btn.classList.add('active');
-      $(btn.dataset.tab).classList.add('active');
-      state.activeTab = btn.dataset.tab;
-    });
-  });
-
-  // Chips de juego
-  document.querySelectorAll('.chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-      document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-      chip.classList.add('active');
-      state.activeGame = chip.dataset.game;
-      loadTopPlayers();
-    });
-  });
-
-  // Admin Modal
-  const modal = $('adminModal');
-  $('btnAdmin').addEventListener('click', () => modal.classList.add('open'));
-  $('btnCloseAdmin').addEventListener('click', () => modal.classList.remove('open'));
-
-  // Clic en el banner del temporizador abre el panel de control
-  const stageBanner = $('stageBanner');
-  if (stageBanner) {
-    stageBanner.style.cursor = 'pointer';
-    stageBanner.title = 'Click para abrir Panel de Control / Temporizador';
-    stageBanner.addEventListener('click', () => modal.classList.add('open'));
-  }
-
-  // Controles de etapa
-  $('btnStartStage').addEventListener('click', () => {
-    const game = $('stageGameSelect').value;
-    const mins = parseInt($('stageDurationInput').value, 10) || 45;
-    
-    state.activeGame = game;
-    $('currentStageGame').textContent = game.replace('-', ' ').toUpperCase();
-    
-    // Activar chip correspondiente
-    document.querySelectorAll('.chip').forEach(c => {
-      c.classList.toggle('active', c.dataset.game === game);
-    });
-
-    resetTimer(mins);
-    startTimer(true);
-    loadTopPlayers();
     modal.classList.remove('open');
-    showToast('¡ETAPA INICIADA!', `${game.toUpperCase()} - ${mins} MINUTOS`);
-  });
 
-  $('btnPauseStage').addEventListener('click', () => {
-    pauseTimer();
-    modal.classList.remove('open');
-  });
-
-  $('btnEndStage').addEventListener('click', () => {
-    pauseTimer();
-    state.timerSeconds = 0;
-    localStorage.setItem('toca_stage_seconds', '0');
-    localStorage.setItem('toca_stage_running', 'false');
-    updateTimerDisplay();
-    $('stageStatus').textContent = 'ETAPA FINALIZADA';
-    modal.classList.remove('open');
+    // Recargar pestañas y ranking
+    renderGameTabs();
+    loadLeaderboard();
+    startAutoRotate();
   });
 }
 
@@ -526,13 +488,18 @@ function escapeHtml(str) {
     tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
 }
 
-// Arranque
+// ==============================================================================
+// 9. ARRANQUE
+// ==============================================================================
 document.addEventListener('DOMContentLoaded', () => {
-  initUI();
-  initTimerState();
-  refreshAllData();
+  loadSavedSettings();
+  startNeonClock();
+  renderGameTabs();
+  loadLeaderboard();
+  initModal();
+  startAutoRotate();
   initRealtime();
 
-  // Refresco de respaldo cada 20s
-  setInterval(refreshAllData, 20000);
+  // Polling de respaldo cada 12 segundos
+  setInterval(loadLeaderboard, 12000);
 });
