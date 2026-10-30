@@ -94,24 +94,21 @@ body.kiosk-body {
 .brand-badge {
   display: flex;
   align-items: center;
+  padding: 2px 0;
 }
 
-.logo-text {
-  font-family: var(--font-title);
-  font-size: 1.15rem;
-  font-weight: 900;
-  color: var(--neon-cyan);
-  text-shadow: 0 0 10px var(--neon-cyan-glow);
-  line-height: 0.9;
-  letter-spacing: 0.05em;
+.brand-logo-img {
+  height: 44px;
+  width: auto;
+  max-width: 155px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 10px rgba(0, 229, 255, 0.45));
+  transition: transform 0.25s ease, filter 0.25s ease;
 }
 
-.logo-text small {
-  font-size: 0.75rem;
-  color: var(--neon-magenta);
-  text-shadow: 0 0 8px var(--neon-magenta-glow);
-  font-weight: 800;
-  text-transform: uppercase;
+.brand-logo-img:hover {
+  transform: scale(1.05);
+  filter: drop-shadow(0 0 16px rgba(0, 229, 255, 0.8));
 }
 
 .title-pill {
