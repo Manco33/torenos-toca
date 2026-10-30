@@ -25,15 +25,11 @@ const GAME_DEFS = {
   'tug-of-war': { name: 'TUG OF WAR', icon: '⚔️', iconSvg: '⚔' }
 };
 
-// Las 4 rotaciones oficiales admitidas (Horizontal, Tótem derecha, Techo, Tótem izquierda)
-const ROTATIONS = [0, 90, 180, 270];
-
 // Estado global de la aplicación Kiosk
 const state = {
   // Juegos activos en el modo torneo
   tournamentGames: ['striker', 'atom-splitter', 'zombies', 'toca-challenge'],
   activeGame: 'striker',
-  rotationDeg: 0,
   autoRotate: true,
   rotateIntervalSec: 15,
   rotateTimer: null,
@@ -47,20 +43,6 @@ const $ = (id) => document.getElementById(id);
 // 1. CARGA DE CONFIGURACIÓN PERSISTENTE (LOCALSTORAGE)
 // ==============================================================================
 function loadSavedSettings() {
-  // Soporte para URL params ?rotate=90|180|270 o ?kiosk=90|180|270
-  const urlParams = new URLSearchParams(window.location.search);
-  const rawUrlRotate = urlParams.get('rotate') || urlParams.get('kiosk');
-
-  if (rawUrlRotate !== null) {
-    const deg = parseInt(rawUrlRotate, 10);
-    applyRotation(ROTATIONS.includes(deg) ? deg : 0, false);
-  } else {
-    // Si no viene en la URL, leer configuración guardada o por defecto 0° Normal
-    const saved = localStorage.getItem('toca_kiosk_rotation');
-    const deg = parseInt(saved, 10);
-    applyRotation(ROTATIONS.includes(deg) ? deg : 0, false);
-  }
-
   const savedGames = localStorage.getItem('toca_tournament_games');
   if (savedGames) {
     try {
@@ -296,54 +278,8 @@ function renderLeaderboardRows(ranked) {
 }
 
 // ==============================================================================
-// 5. SOPORTE DE LAS 4 ROTACIONES (0°, 90°, 180°, 270°) Y AUTOMATIZACIÓN
+// 5. AUTOMATIZACIÓN DE PANTALLA Y BARRA DE PROGRESO DE FASES
 // ==============================================================================
-let isRotating = false;
-
-function applyRotation(deg, save = true) {
-  let targetDeg = parseInt(deg, 10);
-  if (!ROTATIONS.includes(targetDeg)) targetDeg = 0;
-  state.rotationDeg = targetDeg;
-
-  if (save) {
-    if (state.rotationDeg === 0) {
-      localStorage.removeItem('toca_kiosk_rotation');
-    } else {
-      localStorage.setItem('toca_kiosk_rotation', String(state.rotationDeg));
-    }
-  }
-
-  const container = $('kioskContainer');
-  if (container) {
-    ROTATIONS.forEach(r => container.classList.remove(`rotate-${r}`));
-    container.classList.add(`rotate-${state.rotationDeg}`);
-  }
-
-  // Botón rápido en la barra superior
-  const btn = $('btnRotate');
-  if (btn) {
-    const nextIdx = (ROTATIONS.indexOf(state.rotationDeg) + 1) % ROTATIONS.length;
-    const nextDeg = ROTATIONS[nextIdx];
-    btn.innerHTML = `🔄 ${state.rotationDeg}°`;
-    btn.title = `Orientación actual: ${state.rotationDeg}°. Clic para cambiar a ${nextDeg}°`;
-  }
-
-  // Sincronizar botones de la ventana de configuración
-  document.querySelectorAll('.btn-orient').forEach(b => {
-    const bDeg = parseInt(b.dataset.deg, 10);
-    b.classList.toggle('active', bDeg === state.rotationDeg);
-  });
-}
-
-function cycleRotation() {
-  if (isRotating) return;
-  isRotating = true;
-  setTimeout(() => { isRotating = false; }, 350);
-
-  const nextIdx = (ROTATIONS.indexOf(state.rotationDeg) + 1) % ROTATIONS.length;
-  applyRotation(ROTATIONS[nextIdx], true);
-}
-
 function triggerProgressBar(durationSec) {
   const bar = $('indicatorBar');
   if (!bar) return;
@@ -453,27 +389,10 @@ function initModal() {
     $('rotateSecondsInput').value = state.rotateIntervalSec;
     $('timeFilterSelect').value = state.timeFilter;
 
-    // Sincronizar los 4 botones de rotación con la rotación activa
-    document.querySelectorAll('.btn-orient').forEach(b => {
-      const bDeg = parseInt(b.dataset.deg, 10);
-      b.classList.toggle('active', bDeg === state.rotationDeg);
-    });
-
     modal.classList.add('open');
   });
 
   $('btnCloseModal').addEventListener('click', () => modal.classList.remove('open'));
-
-  // Event listeners para los 4 botones de rotación en el modal
-  document.querySelectorAll('.btn-orient').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const deg = parseInt(btn.dataset.deg, 10);
-      applyRotation(deg, true);
-    });
-  });
-
-  const btnRotate = $('btnRotate');
-  if (btnRotate) btnRotate.addEventListener('click', () => cycleRotation());
 
   $('btnSaveConfig').addEventListener('click', () => {
     const selected = [];

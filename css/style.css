@@ -50,57 +50,25 @@ body.kiosk-body {
 }
 
 /* ==============================================================================
-   SOPORTE PARA LAS 4 ROTACIONES DE PANTALLA (0°, 90°, 180°, 270°)
-   Centrada exactamente en 50vw 50vh para monitores horizontales, tótems y techos
+   ROTACIÓN FIJA A 270° PARA PANTALLA / TÓTEM DE QUIOSCO (KIOSK ARCADE)
+   Alineada con precisión milimétrica al centro del viewport (50vw 50vh)
    ============================================================================== */
 .kiosk-container {
   display: flex;
   flex-direction: column;
-  width: 100vw;
-  height: 100vh;
-  max-width: 100vw;
-  max-height: 100vh;
+  width: 100vh !important;
+  height: 100vw !important;
+  max-width: 100vh !important;
+  max-height: 100vw !important;
   box-sizing: border-box;
-  margin: 0 auto;
-  padding: 10px 24px;
+  margin: 0;
+  padding: 14px 28px;
   overflow: hidden;
-  transform: rotate(0deg);
-  transform-origin: 50vw 50vh;
-  transition: transform 0.3s ease-in-out, width 0.3s ease-in-out, height 0.3s ease-in-out;
-}
-
-/* 0° - Normal / Horizontal Estándar */
-.kiosk-container.rotate-0 {
-  transform: rotate(0deg) !important;
-  width: 100vw;
-  height: 100vh;
-}
-
-/* 90° - Vertical derecha (Tótem vertical 9:16) */
-.kiosk-container.rotate-90 {
-  transform: rotate(90deg) !important;
-  width: 100vh !important;
-  height: 100vw !important;
   position: fixed;
-  top: calc(50vh - 50vw);
-  left: calc(50vw - 50vh);
-}
-
-/* 180° - Invertido (Pantalla de techo) */
-.kiosk-container.rotate-180 {
-  transform: rotate(180deg) !important;
-  width: 100vw;
-  height: 100vh;
-}
-
-/* 270° - Vertical izquierda (Tótem vertical invertido) */
-.kiosk-container.rotate-270 {
+  left: calc((100vw - 100vh) / 2) !important;
+  top: calc((100vh - 100vw) / 2) !important;
+  transform-origin: 50% 50% !important;
   transform: rotate(270deg) !important;
-  width: 100vh !important;
-  height: 100vw !important;
-  position: fixed;
-  top: calc(50vh - 50vw);
-  left: calc(50vw - 50vh);
 }
 
 /* ==============================================================================
