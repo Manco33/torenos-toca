@@ -44,8 +44,18 @@ const $ = (id) => document.getElementById(id);
 // 1. CARGA DE CONFIGURACIÓN PERSISTENTE (LOCALSTORAGE)
 // ==============================================================================
 function loadSavedSettings() {
-  const savedRotate = localStorage.getItem('toca_kiosk_rotate');
-  applyRotation(savedRotate === 'true', false);
+  // Por defecto la pantalla SIEMPRE carga normal (0° derecha).
+  // Solo se invierte si se pasa explícitamente ?rotate=180 o ?kiosk=180 en la URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const rotateFromUrl = (urlParams.get('rotate') === '180' || urlParams.get('kiosk') === '180');
+
+  if (rotateFromUrl) {
+    applyRotation(true, false);
+  } else {
+    // Restaurar a 0° Normal y limpiar cualquier rotación residual antigua
+    localStorage.removeItem('toca_kiosk_rotate');
+    applyRotation(false, false);
+  }
 
   const savedGames = localStorage.getItem('toca_tournament_games');
   if (savedGames) {
@@ -289,7 +299,11 @@ let isRotating = false;
 function applyRotation(rotated, save = true) {
   state.isRotated = !!rotated;
   if (save) {
-    localStorage.setItem('toca_kiosk_rotate', state.isRotated ? 'true' : 'false');
+    if (state.isRotated) {
+      localStorage.setItem('toca_kiosk_rotate', 'true');
+    } else {
+      localStorage.removeItem('toca_kiosk_rotate');
+    }
   }
 
   const container = $('kioskContainer');
