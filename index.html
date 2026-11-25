@@ -3,156 +3,309 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TOCA SOCIAL · LEADERBOARD OFICIAL</title>
-  <meta name="description" content="Leaderboard oficial arcade neon para quioscos y pantallas de Toca Social.">
+  <title>TOCA SOCIAL · TORNEO &amp; LEADERBOARD OFICIAL</title>
+  <meta name="description" content="Pantalla oficial de Torneo y Leaderboard en vivo para TV Horizontal (0°) y Kiosk (270°) de Toca Social.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700;800;900&family=Share+Tech+Mono&family=Orbitron:wght@600;800;900&family=Rajdhani:wght@600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700;800&family=Share+Tech+Mono&family=Orbitron:wght@600;700;800;900&family=Rajdhani:wght@600;700;800&display=swap" rel="stylesheet">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <link rel="icon" type="image/png" href="assets/toca_logo.png">
-  <link rel="stylesheet" href="css/style.css?v=10">
+  <link rel="stylesheet" href="css/style.css?v=21">
   <script src="js/supabase.js"></script>
 </head>
-<body class="kiosk-body">
+<body class="arena-body mode-tv" id="arenaBody">
 
-  <!-- CONTENEDOR MAESTRO DEL LEADERBOARD (FIJO A 270° PARA EL KIOSK) -->
-  <div class="kiosk-container" id="kioskContainer">
+  <!-- CONTENEDOR MAESTRO (TV 0° HORIZONTAL <-> KIOSK 270° VERTICAL) -->
+  <div class="arena-viewport" id="arenaViewport">
 
-    <!-- 1. BARRA SUPERIOR (HEADER NEÓN) -->
+    <!-- 1. HEADER NEÓN OFICIAL -->
     <header class="neon-header">
       <div class="header-left">
         <div class="brand-badge">
-          <img src="assets/toca_logo.png?v=7" alt="TOCA Social" class="brand-logo-img">
+          <img src="assets/toca_logo.png?v=8" alt="TOCA Social" class="brand-logo-img">
         </div>
         <div class="title-pill">
           <span class="dot-pink"></span>
-          <span class="title-text">LEADERBOARD</span>
+          <span class="title-text">TORNEO OFICIAL</span>
           <span class="dot-pink"></span>
+        </div>
+        <div class="reset-since-badge" id="resetSinceBadge" style="display:none;" title="Hora desde la que cuentan los puntajes actuales">
+          ⏱️ DESDE <span id="resetSinceTime">--:--</span>
         </div>
       </div>
 
       <div class="header-right">
-        <div class="clock-box" id="neonClock">
-          <div class="clock-time" id="clockTime">15:41:07</div>
-          <div class="clock-date" id="clockDate">Vie, 30 oct 2026</div>
+        <!-- Selector rápido de orientación en 1 clic -->
+        <div class="mode-switcher" role="group" aria-label="Modo de pantalla">
+          <button class="mode-btn active" id="btnModeTv" type="button" title="Modo TV / Pantalla Gigante Horizontal (0°)">
+            <span>📺</span> <span>TV 0°</span>
+          </button>
+          <button class="mode-btn" id="btnModeKiosk" type="button" title="Modo Tótem / Kiosk Vertical (270°)">
+            <span>📱</span> <span>KIOSK 270°</span>
+          </button>
         </div>
+
+        <div class="clock-box" id="neonClock">
+          <div class="clock-time" id="clockTime">00:00:00</div>
+          <div class="clock-date" id="clockDate">Cargando...</div>
+        </div>
+
         <div class="kiosk-tools">
-          <button class="btn-admin-gear" id="btnAdminModal" title="Configurar Modo Torneo">⚙️</button>
+          <button class="btn-reset-panel" id="btnResetPanel" type="button" title="Reiniciar Panel del Torneo a cero desde ahora">
+            <span>🔄</span> <span class="reset-btn-label">REINICIAR PANEL</span>
+          </button>
+          <button class="btn-tool" id="btnFullscreen" type="button" title="Pantalla Completa">⛶</button>
+          <button class="btn-tool" id="btnAdminModal" type="button" title="Configurar Boxes, Juegos y Torneo">⚙️</button>
         </div>
       </div>
     </header>
 
-    <!-- 2. BARRA DE SELECCIÓN DE JUEGOS (ICÓNICA CON PESTAÑA ACTIVA RESALTADA) -->
+    <!-- 2. BARRA DE PESTAÑAS: GENERAL DEL TORNEO + JUEGOS OFICIALES -->
     <nav class="games-nav-bar">
       <div class="games-tab-list" id="gamesNavList">
-        <!-- Generado dinámicamente con los juegos habilitados del torneo -->
+        <!-- Renderizado dinámico: General + Juegos habilitados -->
       </div>
       <div class="records-tag" id="recordsTagContainer">
-        <span id="recordsTagLabel">RÉCORDS DE HOY</span>
+        <span id="recordsTagLabel">TORNEO DE HOY</span>
         <div class="records-indicator">
           <span class="indicator-bar" id="indicatorBar"></span>
         </div>
       </div>
     </nav>
 
-    <!-- 3. BANNER DE IDENTIFICACIÓN DEL JUEGO ACTIVO -->
-    <div class="game-hero-banner" id="gameHeroBanner">
-      <div class="hero-subbadge" id="heroSubbadge">
-        <span class="triangle-icon">▶</span>
-        <span class="subbadge-text" id="subbadgeText">LOS MEJORES RÉCORDS DE HOY</span>
-      </div>
-      <div class="hero-main-title">
-        <div class="hero-icon" id="heroGameIcon">
-          <!-- Icono SVG geométrico del juego -->
+    <!-- 3. BANNER HERO DE CATEGORÍA ACTIVA -->
+    <section class="game-hero-banner" id="gameHeroBanner">
+      <div class="hero-left">
+        <div class="hero-main-title">
+          <div class="hero-icon" id="heroGameIcon">🏆</div>
+          <div>
+            <h1 id="heroGameName">RANKING GENERAL</h1>
+            <p class="hero-desc" id="heroGameDesc">Suma de mejores marcas en los juegos oficiales del torneo</p>
+          </div>
         </div>
-        <h2 id="heroGameName">STRIKER</h2>
       </div>
-    </div>
 
-    <!-- 4. TABLA LEADERBOARD TOP 10 (ESTILO EXACTO AL KIOSK ARCADE) -->
-    <main class="leaderboard-table-area">
-      <table class="neon-table">
-        <thead>
-          <tr class="table-head-row">
-            <th class="col-pos">POS</th>
-            <th class="col-player">JUGADOR</th>
-            <th class="col-points">PUNTOS</th>
-          </tr>
-        </thead>
-        <tbody id="leaderboardRows">
-          <!-- 10 FILAS NEÓN -->
-          <tr><td colspan="3" class="empty-kiosk">Cargando las mejores marcas...</td></tr>
-        </tbody>
-      </table>
+      <div class="hero-right">
+        <div class="hero-stats-pills">
+          <div class="stat-chip">
+            <span class="chip-label">BOXES</span>
+            <strong class="chip-val" id="statBoxesCount">18</strong>
+          </div>
+          <div class="stat-chip">
+            <span class="chip-label">PARTIDAS</span>
+            <strong class="chip-val" id="statMatchesCount">0</strong>
+          </div>
+          <div class="stat-chip">
+            <span class="chip-label">JUGADORES</span>
+            <strong class="chip-val" id="statPlayersCount">0</strong>
+          </div>
+        </div>
+        <div class="hero-subbadge" id="heroSubbadge">
+          <span class="triangle-icon">▶</span>
+          <span class="subbadge-text" id="subbadgeText">LOS MEJORES RÉCORDS DE HOY</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. ESCENARIO CENTRAL: PODIO (1º, 2º, 3º) + TABLA TOP 10 -->
+    <main class="tournament-stage">
+
+      <!-- COLUMNA / BLOQUE A: PODIO DE CAMPEONES -->
+      <section class="podium-section" aria-label="Podio Top 3">
+        <div class="section-mini-header">
+          <span class="mini-dot"></span>
+          <span>PODIO DE LÍDERES · TOP 3</span>
+        </div>
+        <div class="podium-grid" id="podiumContainer">
+          <!-- Renderizado dinámico de Plata (2º), Oro (1º) y Bronce (3º) -->
+        </div>
+      </section>
+
+      <!-- COLUMNA / BLOQUE B: TABLA TOP 10 COMPLETA -->
+      <section class="leaderboard-section" aria-label="Tabla Top 10">
+        <div class="table-container">
+          <table class="neon-table">
+            <thead>
+              <tr class="table-head-row">
+                <th class="col-pos">POS</th>
+                <th class="col-player">JUGADOR</th>
+                <th class="col-box">CABINA / DETALLE</th>
+                <th class="col-points">PUNTOS</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboardRows">
+              <tr>
+                <td colspan="4" class="empty-kiosk">Conectando en tiempo real con las cabinas seleccionadas...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
     </main>
 
-    <!-- 5. TICKER INFERIOR EN VIVO -->
+    <!-- 5. BARRA INFERIOR EN VIVO -->
     <footer class="neon-footer-bar">
       <div class="live-pill">
-        <span class="pill-bolt">⚡</span>
-        <span>EN VIVO</span>
+        <span class="live-dot"></span>
+        <span id="footerBoxesLabel">EN VIVO · 18 BOXES</span>
       </div>
       <div class="footer-carousel" id="footerCarousel">
         <div class="ticker-scroller" id="tickerScroller">
-          <span id="tickerText">Esperando tiros en las 18 cabinas...</span>
+          <span id="tickerText">⚡ Esperando resultados en tiempo real desde las cabinas Toca Social...</span>
         </div>
       </div>
     </footer>
 
-  </div>
-
-  <!-- MODAL DE CONTROL: MODO TORNEO & JUEGOS HABILITADOS -->
-  <div class="kiosk-modal-backdrop" id="kioskModal">
-    <div class="kiosk-modal-card">
-      <div class="modal-header">
-        <h3>CONFIGURACIÓN MODO TORNEO</h3>
-        <button class="modal-close" id="btnCloseModal">&times;</button>
+    <!-- ALERTA EMERGENTE EN VIVO (TOAST ESPORTS) -->
+    <div class="live-shot-toast" id="liveShotToast" aria-live="polite">
+      <div class="toast-badge">⚡ NUEVA MARCA</div>
+      <div class="toast-content">
+        <strong id="toastPlayerName">JUGADOR</strong>
+        <span id="toastGameInfo">STRIKER · BOX 1</span>
       </div>
-      <div class="modal-body">
-        
-        <div class="config-section">
-          <h4>🎮 JUEGOS HABILITADOS PARA EL TORNEO:</h4>
-          <p class="section-hint">Marca únicamente los juegos que se están jugando hoy en el torneo:</p>
-          <div class="game-checkboxes" id="tournamentGamesChecklist">
-            <label class="check-item"><input type="checkbox" value="striker" checked> <span>Striker</span></label>
-            <label class="check-item"><input type="checkbox" value="atom-splitter" checked> <span>Atom Splitter</span></label>
-            <label class="check-item"><input type="checkbox" value="zombies" checked> <span>Zombies</span></label>
-            <label class="check-item"><input type="checkbox" value="toca-challenge" checked> <span>Toca Challenge (100% Solo)</span></label>
-            <label class="check-item"><input type="checkbox" value="eliminator"> <span>Eliminator</span></label>
-            <label class="check-item"><input type="checkbox" value="tug-of-war"> <span>Tug of War</span></label>
+      <div class="toast-score" id="toastScoreVal">0 PTS</div>
+    </div>
+
+    <!-- MODAL DE CONFIRMACIÓN: REINICIAR PANEL -->
+    <div class="kiosk-modal-backdrop" id="resetConfirmModal">
+      <div class="kiosk-modal-card reset-modal-card">
+        <div class="modal-header">
+          <h3>🔄 REINICIAR PANEL DEL TORNEO</h3>
+          <button class="modal-close" id="btnCloseResetModal" type="button">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p class="reset-desc">
+            Al reiniciar el panel, todos los tableros del torneo actual quedarán limpios en <strong>0 puntos</strong> y solo contarán las partidas jugadas <strong>a partir de este instante</strong> (sin borrar los récords históricos de la base de datos).
+          </p>
+          <div class="reset-status-info" id="resetModalStatus">
+            Estado actual: Mostrando todas las partidas de hoy desde las 00:00.
+          </div>
+          <div class="reset-actions-stack">
+            <button type="button" class="btn-danger-neon" id="btnConfirmResetNow">
+              ⚡ REINICIAR A CERO DESDE AHORA
+            </button>
+            <button type="button" class="btn-secondary-neon" id="btnRestoreFullDay">
+              📅 Mostrar todo el día de hoy (desde las 00:00)
+            </button>
+            <button type="button" class="btn-ghost-neon" id="btnCancelReset">
+              Cancelar
+            </button>
           </div>
         </div>
-
-        <div class="config-section">
-          <h4>🔄 ROTACIÓN AUTOMÁTICA DE JUEGOS:</h4>
-          <label class="check-item inline">
-            <input type="checkbox" id="chkAutoRotate" checked>
-            <span>Alternar pantalla automáticamente entre los juegos cada:</span>
-          </label>
-          <div class="input-inline">
-            <input type="number" id="rotateSecondsInput" value="15" min="5" max="120">
-            <span>segundos</span>
-          </div>
-        </div>
-
-        <div class="config-section">
-          <h4>⏱️ FILTRO DE PUNTUACIONES:</h4>
-          <select id="timeFilterSelect" class="styled-select">
-            <option value="today" selected>Solo puntajes de hoy (Torneo actual)</option>
-            <option value="all">Histórico completo de la base de datos</option>
-          </select>
-        </div>
-
-        <div class="modal-actions">
-          <button class="btn-save-kiosk" id="btnSaveConfig">💾 GUARDAR Y APLICAR AL KIOSK</button>
-        </div>
-
       </div>
     </div>
+
+    <!-- MODAL DE CONFIGURACIÓN DEL TORNEO (BOXES, JUEGOS, ORIENTACIÓN Y TIEMPOS) -->
+    <div class="kiosk-modal-backdrop" id="kioskModal">
+      <div class="kiosk-modal-card">
+        <div class="modal-header">
+          <h3>⚙️ CONFIGURACIÓN DEL TORNEO</h3>
+          <button class="modal-close" id="btnCloseModal" type="button">&times;</button>
+        </div>
+        <div class="modal-body">
+
+          <!-- 1. ORIENTACIÓN -->
+          <div class="config-section">
+            <h4>🖥️ MODO DE PANTALLA / ORIENTACIÓN:</h4>
+            <div class="orientation-btn-group">
+              <button type="button" class="btn-orient active" data-mode="tv" id="modalBtnTv">
+                📺 Modo TV Horizontal (0°)
+              </button>
+              <button type="button" class="btn-orient" data-mode="kiosk" id="modalBtnKiosk">
+                📱 Modo Kiosk Tótem (270°)
+              </button>
+            </div>
+          </div>
+
+          <!-- 2. SELECTOR DE CABINAS / BOXES PARTICIPANTES (1-18) -->
+          <div class="config-section">
+            <div class="section-header-row">
+              <h4>🏟️ CABINAS / BOXES PARTICIPANTES (<span id="selectedBoxesCounter">18</span>/18):</h4>
+              <div class="quick-filter-btns">
+                <button type="button" class="mini-preset-btn" id="btnBoxesAll">Todas (18)</button>
+                <button type="button" class="mini-preset-btn" id="btnBoxes1to6">1–6</button>
+                <button type="button" class="mini-preset-btn" id="btnBoxes7to12">7–12</button>
+                <button type="button" class="mini-preset-btn" id="btnBoxes13to18">13–18</button>
+                <button type="button" class="mini-preset-btn" id="btnBoxesNone">Limpiar</button>
+              </div>
+            </div>
+            <p class="section-hint">Solo contarán los puntajes registrados en las cabinas iluminadas:</p>
+            <div class="boxes-selector-grid" id="boxesChecklistGrid">
+              <!-- Generado dinámicamente: BOX 1 a BOX 18 -->
+            </div>
+          </div>
+
+          <!-- 3. JUEGOS OFICIALES PARTICIPANTES -->
+          <div class="config-section">
+            <div class="section-header-row">
+              <h4>🎮 JUEGOS OFICIALES PARTICIPANTES:</h4>
+              <div class="quick-filter-btns">
+                <button type="button" class="mini-preset-btn" id="btnGamesTop4">Top 4 Torneo</button>
+                <button type="button" class="mini-preset-btn" id="btnGamesAll">Todos</button>
+              </div>
+            </div>
+            <p class="section-hint">Marca los juegos del torneo (Toca Challenge siempre es individual):</p>
+            <div class="game-checkboxes" id="tournamentGamesChecklist">
+              <label class="check-item"><input type="checkbox" value="striker" checked> <span>🔺 Striker</span></label>
+              <label class="check-item"><input type="checkbox" value="atom-splitter" checked> <span>⚛️ Atom Splitter</span></label>
+              <label class="check-item"><input type="checkbox" value="zombies" checked> <span>🧟 Zombies</span></label>
+              <label class="check-item"><input type="checkbox" value="toca-challenge" checked> <span>💀 Toca Challenge (Solo)</span></label>
+              <label class="check-item"><input type="checkbox" value="tug-of-war"> <span>⚔️ Tug of War</span></label>
+              <label class="check-item"><input type="checkbox" value="angry-birds"> <span>🐦 Angry Birds</span></label>
+              <label class="check-item"><input type="checkbox" value="eliminator"> <span>🎯 Eliminator</span></label>
+            </div>
+          </div>
+
+          <!-- 4. TABLA GENERAL Y MODO DE PUNTAJE -->
+          <div class="config-section">
+            <h4>🏆 TABLA GENERAL Y MODO DE PUNTAJE:</h4>
+            <label class="check-item inline">
+              <input type="checkbox" id="chkShowOverall" checked>
+              <span>Mostrar pestaña <strong>Ranking General del Torneo</strong> (Campeón Global)</span>
+            </label>
+            <div class="select-row">
+              <label for="scoringModeSelect">Criterio de clasificación por juego:</label>
+              <select id="scoringModeSelect" class="styled-select">
+                <option value="best" selected>Mejor récord individual (Puntaje más alto en el juego)</option>
+                <option value="sum">Acumulado total (Suma de todas las partidas jugadas)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 5. ROTACIÓN Y RÉCORDS -->
+          <div class="config-section">
+            <h4>🔄 ROTACIÓN AUTOMÁTICA Y RÉCORDS:</h4>
+            <div class="select-row" style="margin-bottom: 10px;">
+              <label for="phaseCycleSelect">Qué puntajes mostrar:</label>
+              <select id="phaseCycleSelect" class="styled-select">
+                <option value="today" selected>Solo Torneo Actual (puntajes desde el inicio/reinicio)</option>
+                <option value="cycle">Alternar Torneo Actual ↔ Récords Históricos</option>
+                <option value="all">Solo Récords Históricos (todos los tiempos)</option>
+              </select>
+            </div>
+            <label class="check-item inline">
+              <input type="checkbox" id="chkAutoRotate" checked>
+              <span>Cambiar automáticamente de pestaña cada:</span>
+            </label>
+            <div class="input-inline">
+              <input type="number" id="rotateSecondsInput" value="14" min="5" max="120">
+              <span>segundos</span>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button class="btn-save-kiosk" id="btnSaveConfig" type="button">💾 GUARDAR Y APLICAR AL TORNEO</button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
   </div>
 
-  <script src="js/app.js?v=10"></script>
+  <script src="js/app.js?v=21"></script>
 </body>
 </html>
